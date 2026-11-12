@@ -1,21 +1,21 @@
 import io
+import math
 import os
 import re
+from collections import Counter
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pypdf import PdfReader
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -116,6 +116,30 @@ def extract_keywords(text: str) -> set:
     words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{1,}", text.lower())
     return {w for w in words if len(w) > 2 and w not in STOPWORDS}
 
+def tokenize(text: str) -> list:
+    return [w for w in re.findall(r"[a-z0-9+#.-]+", text.lower()) if len(w) > 1 and w not in STOPWORDS]
+
+def compute_tfidf_cosine(candidate_doc: str, job_docs: list) -> list:
+    all_docs = [tokenize(candidate_doc)] + [tokenize(d) for d in job_docs]
+    n_docs = len(all_docs)
+    df = Counter(term for doc in all_docs for term in set(doc))
+    idf = {term: math.log((n_docs + 1) / (freq + 1)) + 1.0 for term, freq in df.items()}
+
+    vectors = []
+    for doc in all_docs:
+        tf = Counter(doc)
+        total = max(1, len(doc))
+        vectors.append({term: (count / total) * idf[term] for term, count in tf.items()})
+
+    cand_vec = vectors[0]
+    cand_norm = math.sqrt(sum(v * v for v in cand_vec.values())) or 1.0
+    scores = []
+    for job_vec in vectors[1:]:
+        dot = sum(cand_vec.get(t, 0.0) * val for t, val in job_vec.items())
+        job_norm = math.sqrt(sum(v * v for v in job_vec.values())) or 1.0
+        scores.append(dot / (cand_norm * job_norm))
+    return scores
+
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "message": "Campus Connect FastAPI is running"}
@@ -124,7 +148,7 @@ def health_check():
 def signup(data: AuthRequest):
     try:
         res = supabase.auth.sign_up({"email": data.email, "password": data.password, "options": {"data": {"full_name": data.full_name or ""}}})
-        return {"message": "Account created successfully", "user": res.user}
+        return {"message": "Account created successfully", "user": {"id": res.user.id, "email": res.user.email} if res.user else None}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -137,7 +161,7 @@ def login(data: AuthRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
 @app.get("/api/auth/oauth/{provider}")
-def oauth_login(provider: str, redirect_to: str = "http://127.0.0.1:8000/dashboard.html"):
+def oauth_login(provider: str, redirect_to: str = "https://campus-connect-python.vercel.app/dashboard.html"):
     if provider not in ["google", "github"]:
         raise HTTPException(status_code=400, detail="Unsupported provider")
     res = supabase.auth.sign_in_with_oauth({"provider": provider, "options": {"redirect_to": redirect_to}})
@@ -217,11 +241,9 @@ def match_jobs(data: JobMatchRequest):
 
     candidate_doc = data.candidate_skills.strip() or "python sql git html css javascript"
     job_docs = [f"{j['title']} {j['description']}" for j in filtered]
-    vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
-    tfidf_matrix = vectorizer.fit_transform([candidate_doc] + job_docs)
-    similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+    similarities = compute_tfidf_cosine(candidate_doc, job_docs)
 
-    results = [{**job, "match_percentage": min(99, max(12, round(float(sim) * 220)))} for job, sim in zip(filtered, similarities)]
+    results = [{**job, "match_percentage": min(99, max(12, round(float(sim) * 200)))} for job, sim in zip(filtered, similarities)]
     results.sort(key=lambda x: x["match_percentage"], reverse=True)
     return {"jobs": results}
 
@@ -267,4 +289,5 @@ def create_forum_post(data: ForumPostRequest):
     }).execute()
     return {"message": "Post published!", "data": res.data}
 
-app.mount("/", StaticFiles(directory="public", html=True), name="public")
+if os.path.isdir("public"):
+    app.mount("/", StaticFiles(directory="public", html=True), name="public")

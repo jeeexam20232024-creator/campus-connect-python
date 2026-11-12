@@ -19,6 +19,8 @@
     <div class="nav-tabs">
       <button class="nav-btn active" id="nav-ats" onclick="showSection('ats')">🤖 ATS Score Predictor</button>
       <button class="nav-btn" id="nav-jobs" onclick="showSection('jobs')">💼 Job Aggregator & Matcher</button>
+      <button class="nav-btn" id="nav-skills" onclick="showSection('skills')">🎯 Skill Matrix & Gap Analysis</button>
+      <button class="nav-btn" id="nav-alumni" onclick="showSection('alumni')">🤝 Alumni & Interview Bank</button>
     </div>
 
     <!-- SECTION 1: ATS SCORE PREDICTOR -->
@@ -45,8 +47,7 @@
     <!-- SECTION 2: JOB AGGREGATOR & MATCHER -->
     <div id="section-jobs" style="display:none;">
       <h2>💼 Multi-Platform Job Aggregator & TF-IDF Matcher</h2>
-      <p class="subtitle">Search live opportunities across LinkedIn, Indeed, Internshala & Unstop ranked by Cosine Similarity.</p>
-
+      <p class="subtitle">Search opportunities across LinkedIn, Indeed, Internshala & Unstop ranked by Cosine Similarity.</p>
       <div class="grid-2">
         <div>
           <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">Your Skills / Resume Summary</label>
@@ -71,6 +72,47 @@
       </div>
       <button class="btn-primary" onclick="fetchMatchedJobs()">Find & Rank Best Matches</button>
       <div id="jobs-list" style="margin-top:1rem;"></div>
+    </div>
+
+    <!-- SECTION 3: SKILL MATRIX & GAP ANALYSIS -->
+    <div id="section-skills" style="display:none;">
+      <h2>🎯 Student Skill Matrix & Gap Analysis</h2>
+      <p class="subtitle">Rate your current proficiency (0–100) and benchmark against industry role expectations.</p>
+      <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">Target Career Role</label>
+      <select id="target_role" onchange="renderSkillSliders()">
+        <option value="Backend Engineer">Backend Engineer</option>
+        <option value="AI / ML Engineer">AI / ML Engineer</option>
+        <option value="Full-Stack Developer">Full-Stack Developer</option>
+      </select>
+      <div id="skill-sliders" class="grid-2" style="margin-bottom:1rem;"></div>
+      <button class="btn-primary" onclick="runSkillGapAnalysis()">Generate Diagnostic Gap Report</button>
+      <div id="skill-report" class="result-box" style="display:none;"></div>
+    </div>
+
+    <!-- SECTION 4: ALUMNI PORTAL & INTERVIEW BANK -->
+    <div id="section-alumni" style="display:none;">
+      <h2>🤝 Alumni Mentorship & Crowdsourced Interview Bank</h2>
+      <p class="subtitle">Book 1-on-1 mock interviews with alumni and explore verified company question banks.</p>
+
+      <h3 style="color:#38bdf8; margin:1rem 0 0.5rem;">1-on-1 Mentorship & Mock Interviews</h3>
+      <div id="alumni-grid" class="grid-2"></div>
+
+      <h3 style="color:#38bdf8; margin:1.25rem 0 0.5rem;">Company-Specific Interview Question Bank</h3>
+      <select id="bank-company" onchange="renderInterviewQuestions()">
+        <option value="Amazon">Amazon</option>
+        <option value="Google">Google</option>
+        <option value="Microsoft">Microsoft</option>
+        <option value="JPMorgan">JPMorgan</option>
+      </select>
+      <div id="bank-questions" class="result-box" style="margin-top:0;"></div>
+
+      <h3 style="color:#38bdf8; margin:1.25rem 0 0.5rem;">Community Forum & Experience Feed</h3>
+      <div class="grid-2">
+        <input type="text" id="post-title" placeholder="Post title (e.g., My Amazon SDE Intern OA experience)" />
+        <input type="text" id="post-content" placeholder="Share interview tips, resources, or insights..." />
+      </div>
+      <button class="btn-primary" onclick="submitForumPost()">Publish to Community Feed</button>
+      <div id="forum-feed" style="margin-top:0.75rem;"></div>
     </div>
   </div>
   <script src="/js/app.js"></script>

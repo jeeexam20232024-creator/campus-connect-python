@@ -151,13 +151,6 @@ if (atsForm) {
     }
   });
 }
-function showSection(section) {
-    document.getElementById("section-ats").style.display = section === "ats" ? "block" : "none";
-    document.getElementById("section-jobs").style.display = section === "jobs" ? "block" : "none";
-    document.getElementById("nav-ats").classList.toggle("active", section === "ats");
-    document.getElementById("nav-jobs").classList.toggle("active", section === "jobs");
-    if (section === "jobs") fetchMatchedJobs();
-  }
   
   async function fetchMatchedJobs() {
     const list = document.getElementById("jobs-list");
@@ -200,3 +193,130 @@ function showSection(section) {
       </div>
     `).join("");
   }
+  let currentUserEmail = "";
+let cachedInterviewBank = {};
+
+const ROLE_SKILLS = {
+  "Backend Engineer": ["Python", "SQL & Databases", "REST APIs & FastAPI", "Data Structures & Algorithms", "Docker & Cloud", "Communication & Teamwork"],
+  "AI / ML Engineer": ["Python", "SQL & Databases", "Machine Learning & NLP", "Data Structures & Algorithms", "Docker & Cloud", "Communication & Teamwork"],
+  "Full-Stack Developer": ["Python", "SQL & Databases", "REST APIs & FastAPI", "Frontend (HTML/CSS/JS)", "Docker & Cloud", "Communication & Teamwork"]
+};
+
+function showSection(section) {
+  ["ats", "jobs", "skills", "alumni"].forEach(s => {
+    document.getElementById(`section-${s}`).style.display = s === section ? "block" : "none";
+    document.getElementById(`nav-${s}`).classList.toggle("active", s === section);
+  });
+  if (section === "jobs") fetchMatchedJobs();
+  if (section === "skills") renderSkillSliders();
+  if (section === "alumni") loadAlumniPortal();
+}
+
+function renderSkillSliders() {
+  const role = document.getElementById("target_role").value;
+  const skills = ROLE_SKILLS[role];
+  document.getElementById("skill-sliders").innerHTML = skills.map(skill => `
+    <div style="background:#0f172a; padding:0.85rem; border-radius:8px; border:1px solid #334155;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem;">
+        <span>${skill}</span>
+        <strong id="val-${skill}" style="color:#38bdf8;">60%</strong>
+      </div>
+      <input type="range" min="0" max="100" value="60" data-skill="${skill}"
+        oninput="document.getElementById('val-${skill}').textContent = this.value + '%'" style="margin:0;" />
+    </div>
+  `).join("");
+}
+
+async function runSkillGapAnalysis() {
+  const role = document.getElementById("target_role").value;
+  const skills = {};
+  document.querySelectorAll("#skill-sliders input[type='range']").forEach(el => {
+    skills[el.dataset.skill] = parseInt(el.value, 10);
+  });
+
+  const res = await fetch("/api/skills/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target_role: role, skills })
+  });
+  const data = await res.json();
+  const box = document.getElementById("skill-report");
+  box.style.display = "block";
+  box.innerHTML = `
+    <div style="margin-bottom:1rem;">
+      <span style="color:#94a3b8;">ROLE READINESS SCORE (${data.target_role}):</span>
+      <span class="score-badge" style="margin-left:0.6rem;">${data.readiness_score}%</span>
+    </div>
+    ${data.report.map(r => `
+      <div style="margin-bottom:0.75rem;">
+        <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:0.25rem;">
+          <span>${r.skill} (You: ${r.current}% vs Target: ${r.target}%)</span>
+          <strong style="color:${r.gap === 0 ? '#4ade80' : '#fbbf24'};">${r.status}</strong>
+        </div>
+        <div style="background:#1e293b; height:8px; border-radius:6px; overflow:hidden;">
+          <div style="width:${r.current}%; background:${r.gap === 0 ? '#4ade80' : '#38bdf8'}; height:100%;"></div>
+        </div>
+      </div>
+    `).join("")}
+  `;
+}
+
+async function loadAlumniPortal() {
+  const res = await fetch("/api/alumni/overview");
+  const data = await res.json();
+  cachedInterviewBank = data.interview_bank || {};
+
+  document.getElementById("alumni-grid").innerHTML = data.alumni.map(a => `
+    <div style="background:#0f172a; padding:1rem; border-radius:10px; border:1px solid #334155;">
+      <strong style="color:#f8fafc;">${a.name}</strong> <span class="platform-tag">Batch ${a.batch}</span>
+      <div style="color:#38bdf8; font-size:0.88rem; margin:0.25rem 0;">${a.role} @ ${a.company}</div>
+      <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:0.75rem;">${a.specialty}</p>
+      <button class="btn-primary btn-sm" onclick="requestMentorship('${a.name}', '${a.company}')">Request Mock Interview</button>
+    </div>
+  `).join("");
+
+  renderInterviewQuestions();
+
+  document.getElementById("forum-feed").innerHTML = (data.posts || []).map(p => `
+    <div style="background:#0f172a; padding:0.9rem; border-radius:8px; border:1px solid #334155; margin-bottom:0.6rem;">
+      <strong style="color:#f8fafc;">${p.title}</strong>
+      <div style="color:#94a3b8; font-size:0.8rem; margin-bottom:0.35rem;">Posted by ${p.author_email}</div>
+      <p style="color:#cbd5e1; font-size:0.9rem;">${p.content}</p>
+    </div>
+  `).join("") || `<p style="color:#94a3b8;">No posts yet—be the first to share an interview insight!</p>`;
+}
+
+function renderInterviewQuestions() {
+  const company = document.getElementById("bank-company").value;
+  const qs = cachedInterviewBank[company] || [];
+  document.getElementById("bank-questions").innerHTML = `
+    <ul class="rec-list">${qs.map(q => `<li>${q}</li>`).join("")}</ul>
+  `;
+}
+
+async function requestMentorship(mentorName, company) {
+  const topic = prompt(`What topic would you like ${mentorName} (${company}) to cover in your 1-on-1 session?`, "DSA & Backend Mock Interview");
+  if (!topic) return;
+  const email = document.getElementById("user-email").textContent.replace("Signed in as: ", "");
+  await fetch("/api/alumni/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_email: email, mentor_name: mentorName, company, topic })
+  });
+  alert(`Mock interview request sent to ${mentorName}!`);
+}
+
+async function submitForumPost() {
+  const title = document.getElementById("post-title").value.trim();
+  const content = document.getElementById("post-content").value.trim();
+  if (!title || !content) return alert("Please enter both a title and content.");
+  const email = document.getElementById("user-email").textContent.replace("Signed in as: ", "");
+  await fetch("/api/alumni/forum", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ author_email: email, title, content })
+  });
+  document.getElementById("post-title").value = "";
+  document.getElementById("post-content").value = "";
+  loadAlumniPortal();
+}

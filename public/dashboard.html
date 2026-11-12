@@ -16,25 +16,62 @@
       <button class="btn-oauth btn-sm" onclick="logout()">Sign Out</button>
     </div>
 
-    <h2>🤖 Real-Time ATS Score Predictor</h2>
-    <p class="subtitle">Upload a PDF/TXT resume or paste resume text alongside your target job description.</p>
+    <div class="nav-tabs">
+      <button class="nav-btn active" id="nav-ats" onclick="showSection('ats')">🤖 ATS Score Predictor</button>
+      <button class="nav-btn" id="nav-jobs" onclick="showSection('jobs')">💼 Job Aggregator & Matcher</button>
+    </div>
 
-    <form id="ats-form">
+    <!-- SECTION 1: ATS SCORE PREDICTOR -->
+    <div id="section-ats">
+      <h2>🤖 Real-Time ATS Score Predictor</h2>
+      <p class="subtitle">Upload a PDF/TXT resume or paste resume text alongside your target job description.</p>
+      <form id="ats-form">
+        <div class="grid-2">
+          <div>
+            <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">1. Upload Resume (PDF/TXT) or Paste Text</label>
+            <input type="file" id="resume_file" accept=".pdf,.txt" />
+            <textarea id="resume_text" placeholder="Or paste your resume content here..."></textarea>
+          </div>
+          <div>
+            <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">2. Target Job Description</label>
+            <textarea id="job_description" style="min-height: 192px;" placeholder="Paste the full job posting requirements here..." required></textarea>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" id="ats-btn">Calculate ATS Compatibility Score</button>
+      </form>
+      <div id="ats-result" class="result-box" style="display:none;"></div>
+    </div>
+
+    <!-- SECTION 2: JOB AGGREGATOR & MATCHER -->
+    <div id="section-jobs" style="display:none;">
+      <h2>💼 Multi-Platform Job Aggregator & TF-IDF Matcher</h2>
+      <p class="subtitle">Search live opportunities across LinkedIn, Indeed, Internshala & Unstop ranked by Cosine Similarity.</p>
+
       <div class="grid-2">
         <div>
-          <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">1. Upload Resume (PDF/TXT) or Paste Text</label>
-          <input type="file" id="resume_file" accept=".pdf,.txt" />
-          <textarea id="resume_text" placeholder="Or paste your resume content here..."></textarea>
+          <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">Your Skills / Resume Summary</label>
+          <input type="text" id="candidate_skills" value="Python, FastAPI, SQL, HTML, CSS, JavaScript, Pandas, LangChain, Git" />
         </div>
-        <div>
-          <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">2. Target Job Description</label>
-          <textarea id="job_description" style="min-height: 192px;" placeholder="Paste the full job posting requirements here..." required></textarea>
+        <div style="display:flex; gap:0.75rem;">
+          <div style="flex:2;">
+            <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">Role or Keyword</label>
+            <input type="text" id="job_search" placeholder="e.g., Python, AI, Backend..." />
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">Platform</label>
+            <select id="job_platform">
+              <option value="All">All Platforms</option>
+              <option value="LinkedIn">LinkedIn</option>
+              <option value="Indeed">Indeed</option>
+              <option value="Internshala">Internshala</option>
+              <option value="Unstop">Unstop</option>
+            </select>
+          </div>
         </div>
       </div>
-      <button type="submit" class="btn-primary" id="ats-btn">Calculate ATS Compatibility Score</button>
-    </form>
-
-    <div id="ats-result" class="result-box" style="display:none;"></div>
+      <button class="btn-primary" onclick="fetchMatchedJobs()">Find & Rank Best Matches</button>
+      <div id="jobs-list" style="margin-top:1rem;"></div>
+    </div>
   </div>
   <script src="/js/app.js"></script>
 </body>

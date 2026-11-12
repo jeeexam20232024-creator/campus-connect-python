@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Campus Connect — Sign In</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="card">
+    <h1>Campus Connect</h1>
+    <p class="subtitle">Career intelligence, ATS predictor & alumni network</p>
+
+    <div class="tabs">
+      <button id="tab-login" class="active" onclick="switchMode('login')">Sign In</button>
+      <button id="tab-signup" onclick="switchMode('signup')">Create Account</button>
+    </div>
+
+    <form id="auth-form">
+      <input type="text" id="full_name" placeholder="Full Name" style="display:none;" />
+      <input type="email" id="email" placeholder="College or Personal Email" required />
+      <input type="password" id="password" placeholder="Password (min 6 chars)" required />
+      <button type="submit" class="btn-primary" id="submit-btn">Sign In</button>
+    </form>
+
+    <button class="btn-oauth" onclick="oauthSignIn('github')">Continue with GitHub</button>
+    <button class="btn-oauth" onclick="oauthSignIn('google')">Continue with Google</button>
+    <p id="msg"></p>
+  </div>
+  <script src="/js/app.js"></script>
+</body>
+</html>

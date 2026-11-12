@@ -3,5 +3,5 @@ uvicorn
 supabase
 python-dotenv
 pypdf
+python-multipart
 scikit-learn
-pydanticpython-multipart

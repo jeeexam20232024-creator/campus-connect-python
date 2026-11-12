@@ -93,3 +93,61 @@ function logout() {
   localStorage.removeItem("cc_token");
   window.location.href = "/index.html";
 }
+const atsForm = document.getElementById("ats-form");
+if (atsForm) {
+  atsForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("ats-btn");
+    const box = document.getElementById("ats-result");
+    btn.textContent = "Analyzing Resume...";
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append("job_description", document.getElementById("job_description").value);
+    formData.append("resume_text", document.getElementById("resume_text").value);
+    const fileInput = document.getElementById("resume_file");
+    if (fileInput.files.length > 0) {
+      formData.append("resume_file", fileInput.files[0]);
+    }
+
+    try {
+      const res = await fetch("/api/ats/analyze", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Analysis failed");
+
+      box.style.display = "block";
+      box.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <div>
+            <div style="color:#94a3b8; font-size:0.85rem;">ATS MATCH SCORE</div>
+            <div class="score-badge">${data.ats_score}%</div>
+          </div>
+          <div style="text-align:right; color:#94a3b8; font-size:0.85rem;">
+            Sections Detected: <strong>${data.found_sections.join(", ") || "None"}</strong>
+          </div>
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <strong style="color:#4ade80;">Matched Keywords:</strong><br/>
+          ${data.matched_keywords.map(k => `<span class="pill pill-good">${k}</span>`).join("") || "None"}
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <strong style="color:#f87171;">Missing Hard Skills:</strong><br/>
+          ${data.missing_hard_keywords.map(k => `<span class="pill pill-miss">${k}</span>`).join("") || "None"}
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <strong style="color:#fbbf24;">Missing Soft Skills:</strong><br/>
+          ${data.missing_soft_keywords.map(k => `<span class="pill pill-miss">${k}</span>`).join("") || "None"}
+        </div>
+        <div>
+          <strong>Actionable Recommendations:</strong>
+          <ul class="rec-list">${data.recommendations.map(r => `<li>${r}</li>`).join("")}</ul>
+        </div>
+      `;
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = "Calculate ATS Compatibility Score";
+      btn.disabled = false;
+    }
+  });
+}

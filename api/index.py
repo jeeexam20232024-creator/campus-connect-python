@@ -1,11 +1,15 @@
+import io
 import os
-from fastapi import FastAPI, HTTPException, Header
+import re
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from pypdf import PdfReader
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from typing import Optional
+
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -27,6 +31,21 @@ class AuthRequest(BaseModel):
     email: str
     password: str
     full_name: Optional[str] = None
+
+STOPWORDS = {
+    "and", "the", "for", "with", "you", "will", "are", "this", "that", "from",
+    "have", "has", "our", "your", "work", "team", "role", "years", "experience",
+    "skills", "ability", "strong", "knowledge", "using", "such", "into", "their"
+}
+
+SOFT_SKILLS_DB = {
+    "leadership", "communication", "teamwork", "collaboration", "problem-solving",
+    "adaptability", "agile", "mentoring", "presentation", "ownership", "analytical"
+}
+
+def extract_keywords(text: str) -> set:
+    words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{1,}", text.lower())
+    return {w for w in words if len(w) > 2 and w not in STOPWORDS}
 
 @app.get("/api/health")
 def health_check():
@@ -55,7 +74,7 @@ def login(data: AuthRequest):
             "access_token": res.session.access_token,
             "user": {"id": res.user.id, "email": res.user.email}
         }
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
 @app.get("/api/auth/oauth/{provider}")
@@ -79,5 +98,67 @@ def get_current_user(authorization: str = Header(None)):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
 
-# Serves your HTML/CSS/JS files automatically during local testing
+@app.post("/api/ats/analyze")
+async def analyze_ats(
+    job_description: str = Form(...),
+    resume_text: str = Form(""),
+    resume_file: Optional[UploadFile] = File(None)
+):
+    extracted_text = resume_text.strip()
+
+    if resume_file and resume_file.filename:
+        content = await resume_file.read()
+        if resume_file.filename.lower().endswith(".pdf"):
+            reader = PdfReader(io.BytesIO(content))
+            extracted_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        else:
+            extracted_text = content.decode("utf-8", errors="ignore")
+
+    if len(extracted_text) < 30:
+        raise HTTPException(status_code=400, detail="Please upload a valid PDF/TXT resume or paste resume text.")
+
+    jd_keywords = extract_keywords(job_description)
+    res_keywords = extract_keywords(extracted_text)
+
+    if not jd_keywords:
+        raise HTTPException(status_code=400, detail="Job description is too short to analyze.")
+
+    matched = sorted(jd_keywords & res_keywords)
+    missing = sorted(jd_keywords - res_keywords)
+
+    missing_soft = [w for w in missing if w in SOFT_SKILLS_DB][:8]
+    missing_hard = [w for w in missing if w not in SOFT_SKILLS_DB][:12]
+
+    # Section formatting check
+    lower_res = extracted_text.lower()
+    expected_sections = ["education", "experience", "skills", "projects"]
+    found_sections = [s for s in expected_sections if s in lower_res]
+    missing_sections = [s for s in expected_sections if s not in lower_res]
+
+    keyword_score = (len(matched) / len(jd_keywords)) * 75
+    section_score = (len(found_sections) / len(expected_sections)) * 25
+    total_score = min(100, round(keyword_score + section_score))
+
+    recommendations = []
+    if missing_hard:
+        recommendations.append(f"Add core technical keywords found in the JD: {', '.join(missing_hard[:5])}.")
+    if missing_soft:
+        recommendations.append(f"Demonstrate soft skills like: {', '.join(missing_soft[:4])} in project bullets.")
+    if missing_sections:
+        recommendations.append(f"Include clear standard headings for: {', '.join(s.title() for s in missing_sections)}.")
+    if len(extracted_text.split()) < 150:
+        recommendations.append("Your resume appears brief; quantify project achievements with metrics (%, latency, users).")
+    if not recommendations:
+        recommendations.append("Strong keyword alignment and section structure! Tailor your top summary line to the exact role title.")
+
+    return {
+        "ats_score": total_score,
+        "matched_keywords": matched[:20],
+        "missing_hard_keywords": missing_hard,
+        "missing_soft_keywords": missing_soft,
+        "found_sections": found_sections,
+        "missing_sections": missing_sections,
+        "recommendations": recommendations
+    }
+
 app.mount("/", StaticFiles(directory="public", html=True), name="public")

@@ -4,4 +4,4 @@ supabase
 python-dotenv
 pypdf
 scikit-learn
-pydantic
+pydanticpython-multipart

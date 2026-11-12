@@ -2,15 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Campus Connect — Dashboard</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
-  <div class="card" style="max-width: 700px;">
-    <h1>Welcome to Campus Connect</h1>
-    <p class="subtitle" id="user-email">Verifying session...</p>
-    <p style="margin-bottom: 1.5rem; color: #cbd5e1;">Route protection is active! Only authenticated users can view this dashboard.</p>
-    <button class="btn-oauth" onclick="logout()">Sign Out</button>
+  <div class="dashboard-shell">
+    <div class="topbar">
+      <div>
+        <h1>Campus Connect</h1>
+        <p class="subtitle" id="user-email" style="margin:0;">Verifying session...</p>
+      </div>
+      <button class="btn-oauth btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+
+    <h2>🤖 Real-Time ATS Score Predictor</h2>
+    <p class="subtitle">Upload a PDF/TXT resume or paste resume text alongside your target job description.</p>
+
+    <form id="ats-form">
+      <div class="grid-2">
+        <div>
+          <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">1. Upload Resume (PDF/TXT) or Paste Text</label>
+          <input type="file" id="resume_file" accept=".pdf,.txt" />
+          <textarea id="resume_text" placeholder="Or paste your resume content here..."></textarea>
+        </div>
+        <div>
+          <label style="display:block; margin-bottom:0.4rem; color:#cbd5e1;">2. Target Job Description</label>
+          <textarea id="job_description" style="min-height: 192px;" placeholder="Paste the full job posting requirements here..." required></textarea>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary" id="ats-btn">Calculate ATS Compatibility Score</button>
+    </form>
+
+    <div id="ats-result" class="result-box" style="display:none;"></div>
   </div>
   <script src="/js/app.js"></script>
 </body>

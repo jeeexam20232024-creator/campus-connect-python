@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pypdf import PdfReader
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -32,6 +34,11 @@ class AuthRequest(BaseModel):
     password: str
     full_name: Optional[str] = None
 
+class JobMatchRequest(BaseModel):
+    candidate_skills: str
+    search_query: str = ""
+    platform: str = "All"
+
 STOPWORDS = {
     "and", "the", "for", "with", "you", "will", "are", "this", "that", "from",
     "have", "has", "our", "your", "work", "team", "role", "years", "experience",
@@ -42,6 +49,89 @@ SOFT_SKILLS_DB = {
     "leadership", "communication", "teamwork", "collaboration", "problem-solving",
     "adaptability", "agile", "mentoring", "presentation", "ownership", "analytical"
 }
+
+JOBS_CATALOG = [
+    {
+        "id": 1,
+        "title": "Software Engineering Intern (Backend & Python)",
+        "company": "Razorpay",
+        "platform": "LinkedIn",
+        "location": "Bengaluru / Hybrid",
+        "stipend": "₹45,000/month",
+        "description": "Build scalable REST APIs in Python, FastAPI, SQL, PostgreSQL, Docker, Git, and microservices architecture.",
+        "apply_url": "https://www.linkedin.com/jobs/"
+    },
+    {
+        "id": 2,
+        "title": "AI & Machine Learning Developer Intern",
+        "company": "Swiggy",
+        "platform": "Internshala",
+        "location": "Remote",
+        "stipend": "₹35,000/month",
+        "description": "Develop NLP pipelines, scikit-learn recommendation models, Pandas data workflows, and LangChain LLM agents.",
+        "apply_url": "https://internshala.com/internships/"
+    },
+    {
+        "id": 3,
+        "title": "Full-Stack Web Developer (Python + JS)",
+        "company": "Zomato",
+        "platform": "Indeed",
+        "location": "Gurugram / Remote",
+        "stipend": "₹40,000/month",
+        "description": "Design responsive HTML, CSS, JavaScript frontends connected to FastAPI Python backends, SQL databases, and cloud CI/CD.",
+        "apply_url": "https://in.indeed.com/"
+    },
+    {
+        "id": 4,
+        "title": "SDE-1 Campus Challenge & Hiring Track",
+        "company": "Flipkart",
+        "platform": "Unstop",
+        "location": "Bengaluru",
+        "stipend": "₹18 LPA CTC",
+        "description": "Strong Data Structures, Algorithms, C++, Python, Object-Oriented Programming, system design, and problem-solving skills.",
+        "apply_url": "https://unstop.com/"
+    },
+    {
+        "id": 5,
+        "title": "Data Analytics & Visualization Intern",
+        "company": "Deloitte India",
+        "platform": "LinkedIn",
+        "location": "Kolkata / Hybrid",
+        "stipend": "₹30,000/month",
+        "description": "Analyze business datasets using Python, Pandas, SQL, Plotly dashboards, Excel, and analytical presentation skills.",
+        "apply_url": "https://www.linkedin.com/jobs/"
+    },
+    {
+        "id": 6,
+        "title": "Cloud & DevOps Engineering Intern",
+        "company": "Atlassian",
+        "platform": "Unstop",
+        "location": "Remote",
+        "stipend": "₹60,000/month",
+        "description": "Automate deployments with Docker, Kubernetes, AWS, Linux, Python scripting, GitHub Actions CI/CD, and monitoring.",
+        "apply_url": "https://unstop.com/"
+    },
+    {
+        "id": 7,
+        "title": "Frontend & UI Engineering Intern",
+        "company": "CRED",
+        "platform": "Internshala",
+        "location": "Bengaluru",
+        "stipend": "₹50,000/month",
+        "description": "Craft high-performance web interfaces with HTML5, modern CSS, JavaScript, REST API integration, and Figma.",
+        "apply_url": "https://internshala.com/internships/"
+    },
+    {
+        "id": 8,
+        "title": "Associate Software Engineer",
+        "company": "JPMorgan Chase & Co.",
+        "platform": "Indeed",
+        "location": "Mumbai / Bengaluru",
+        "stipend": "₹14 LPA CTC",
+        "description": "Build resilient financial applications with Python, Java, SQL, Git, agile teamwork, and automated testing.",
+        "apply_url": "https://in.indeed.com/"
+    }
+]
 
 def extract_keywords(text: str) -> set:
     words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{1,}", text.lower())
@@ -129,7 +219,6 @@ async def analyze_ats(
     missing_soft = [w for w in missing if w in SOFT_SKILLS_DB][:8]
     missing_hard = [w for w in missing if w not in SOFT_SKILLS_DB][:12]
 
-    # Section formatting check
     lower_res = extracted_text.lower()
     expected_sections = ["education", "experience", "skills", "projects"]
     found_sections = [s for s in expected_sections if s in lower_res]
@@ -160,5 +249,37 @@ async def analyze_ats(
         "missing_sections": missing_sections,
         "recommendations": recommendations
     }
+
+@app.post("/api/jobs/match")
+def match_jobs(data: JobMatchRequest):
+    filtered = JOBS_CATALOG
+    if data.platform and data.platform != "All":
+        filtered = [j for j in filtered if j["platform"].lower() == data.platform.lower()]
+
+    if data.search_query.strip():
+        q = data.search_query.lower().strip()
+        filtered = [
+            j for j in filtered
+            if q in j["title"].lower() or q in j["company"].lower() or q in j["description"].lower()
+        ]
+
+    if not filtered:
+        return {"jobs": []}
+
+    candidate_doc = data.candidate_skills.strip() or "python sql git html css javascript"
+    job_docs = [f"{j['title']} {j['description']}" for j in filtered]
+
+    vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
+    tfidf_matrix = vectorizer.fit_transform([candidate_doc] + job_docs)
+    similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+
+    results = []
+    for job, sim in zip(filtered, similarities):
+        # Scale cosine similarity into an intuitive 0-100% match score
+        match_pct = min(99, max(12, round(float(sim) * 220)))
+        results.append({**job, "match_percentage": match_pct})
+
+    results.sort(key=lambda x: x["match_percentage"], reverse=True)
+    return {"jobs": results}
 
 app.mount("/", StaticFiles(directory="public", html=True), name="public")

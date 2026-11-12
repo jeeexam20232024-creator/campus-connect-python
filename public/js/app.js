@@ -151,3 +151,52 @@ if (atsForm) {
     }
   });
 }
+function showSection(section) {
+    document.getElementById("section-ats").style.display = section === "ats" ? "block" : "none";
+    document.getElementById("section-jobs").style.display = section === "jobs" ? "block" : "none";
+    document.getElementById("nav-ats").classList.toggle("active", section === "ats");
+    document.getElementById("nav-jobs").classList.toggle("active", section === "jobs");
+    if (section === "jobs") fetchMatchedJobs();
+  }
+  
+  async function fetchMatchedJobs() {
+    const list = document.getElementById("jobs-list");
+    list.innerHTML = `<p style="color:#94a3b8;">Running TF-IDF + Cosine Similarity matching...</p>`;
+  
+    const payload = {
+      candidate_skills: document.getElementById("candidate_skills").value,
+      search_query: document.getElementById("job_search").value,
+      platform: document.getElementById("job_platform").value
+    };
+  
+    const res = await fetch("/api/jobs/match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+  
+    if (!data.jobs || data.jobs.length === 0) {
+      list.innerHTML = `<p style="color:#94a3b8;">No matching roles found. Try clearing filters.</p>`;
+      return;
+    }
+  
+    list.innerHTML = data.jobs.map(job => `
+      <div class="job-card">
+        <div>
+          <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.35rem;">
+            <strong style="font-size:1.05rem; color:#f8fafc;">${job.title}</strong>
+            <span class="platform-tag">${job.platform}</span>
+          </div>
+          <div style="color:#94a3b8; font-size:0.85rem; margin-bottom:0.5rem;">
+            ${job.company} • ${job.location} • <strong style="color:#38bdf8;">${job.stipend}</strong>
+          </div>
+          <p style="color:#cbd5e1; font-size:0.88rem; line-height:1.45;">${job.description}</p>
+        </div>
+        <div style="text-align:right;">
+          <div class="match-pill">${job.match_percentage}% Match</div>
+          <a href="${job.apply_url}" target="_blank" style="display:inline-block; margin-top:0.6rem; color:#38bdf8; font-size:0.85rem; text-decoration:none;">Apply →</a>
+        </div>
+      </div>
+    `).join("");
+  }
